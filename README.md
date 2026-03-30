@@ -1,13 +1,31 @@
-# LogicPoison
+# 🧪 LogicPoison
 
-Official code for **"LogicPoison: Logical Attacks on Graph Retrieval-Augmented Generation"**.
+> Official code for **"LogicPoison: Logical Attacks on Graph Retrieval-Augmented Generation"**.
 
-## Overview
+<p align="center">
+  <a href="https://arxiv.org/" target="_blank">
+    <img src="https://img.shields.io/badge/Paper-Arxiv-red?logo=arxiv&style=flat-square" alt="arXiv:2506.08938">
+  </a>
+  <a href="https://huggingface.co/" target="_blank">
+    <img src="https://img.shields.io/badge/HuggingFace-Model-yellow?logo=huggingface&style=flat-square" alt="HuggingFace">
+  </a>
+  <a href="https://github.com/Jord8061/logicPoison" target="_blank">
+    <img src="https://img.shields.io/badge/GitHub-Project-181717?logo=github&style=flat-square" alt="GitHub">
+  </a>
+</p>
+
+---
+## 📢 News
+- **[2026-04-04]** Our **[LogicPoison](https://github.com/Jord8061/logicPoison)** is accepted by .
+- **[2026-04-03]** We release the codes of **[LogicPoison](https://github.com/Jord8061/logicPoison)** and the **[datasets](https://github.com/Jord8061/logicPoison)**.
+---
+
+## 🔎 Overview
 
 **LogicPoison** is a logical poisoning framework for **GraphRAG** systems.  
 Instead of injecting fabricated facts or adversarial instructions into the corpus, it perturbs the **implicit reasoning topology** of the graph through **type-preserving entity swapping**.
 
-The key idea is simple:
+The key idea is simple but effective:
 
 - identify globally important logic hubs in the corpus,
 - identify query-specific bridge entities required for multi-hop reasoning,
@@ -19,7 +37,9 @@ This causes GraphRAG systems to follow corrupted reasoning chains and produce in
   <img src="img/main_figure.png" alt="LogicPoison framework" width="95%">
 </p>
 
-## Method
+---
+
+## 🛠️ Method
 
 LogicPoison consists of three stages:
 
@@ -32,7 +52,7 @@ Use query-side reasoning signals to identify **bridge entities** that are import
 ### 3. Type-Preserving Entity Swapping
 Combine the selected entities and perform **bijective swapping within the same entity type** (e.g., PERSON with PERSON, ORG with ORG), producing a poisoned corpus that remains grammatically and semantically plausible at the local text level.
 
-## Repository Structure
+## 📄 Repository Structure
 
 ```text
 .
@@ -53,7 +73,9 @@ Combine the selected entities and perform **bijective swapping within the same e
 └── ...
 ```
 
-## Installation
+---
+
+## 📦 Installation
 
 ### Step 1: Install Python packages
 
@@ -80,7 +102,7 @@ export OPENAI_API_KEY="your-api-key-here"
 export OPENAI_BASE_URL="your-base-url-here"
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 Use `main.py` as the single entry point.
 
@@ -103,6 +125,8 @@ python main.py --stages logic --datasets 2wikimultihopqa
 python main.py --help
 ```
 
+---
+
 ## Responsible Use
 
 This project is released for **research and defensive evaluation purposes only**.
@@ -111,6 +135,8 @@ LogicPoison demonstrates a realistic vulnerability in GraphRAG systems: even whe
 We release this code to support the development of more robust GraphRAG pipelines, better detection methods, and stronger defense mechanisms.
 
 Please do **not** use this repository to attack real-world systems or deploy poisoned corpora in production environments.
+
+---
 
 <!-- ## Citation
 
