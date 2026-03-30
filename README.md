@@ -6,7 +6,7 @@
   <a href="https://arxiv.org/" target="_blank">
     <img src="https://img.shields.io/badge/Paper-Arxiv-red?logo=arxiv&style=flat-square" alt="arXiv:2506.08938">
   </a>
-  <a href="https://huggingface.co/" target="_blank">
+  <a href="https://huggingface.co/datasets/Jord8061/datasets" target="_blank">
     <img src="https://img.shields.io/badge/HuggingFace-Model-yellow?logo=huggingface&style=flat-square" alt="HuggingFace">
   </a>
   <a href="https://github.com/Jord8061/logicPoison" target="_blank">
@@ -17,7 +17,7 @@
 ---
 ## 📢 News
 - **[2026-04-04]** Our **[LogicPoison](https://github.com/Jord8061/logicPoison)** is accepted by .
-- **[2026-04-03]** We release the codes of **[LogicPoison](https://github.com/Jord8061/logicPoison)** and the **[datasets](https://github.com/Jord8061/logicPoison)**.
+- **[2026-04-03]** We release the codes of **[LogicPoison](https://github.com/Jord8061/logicPoison)** and the **[datasets](https://huggingface.co/datasets/Jord8061/datasets)**.
 ---
 
 ## 🔎 Overview
