@@ -3,7 +3,7 @@
 > Official code for **"LogicPoison: Logical Attacks on Graph Retrieval-Augmented Generation"**.
 
 <p align="center">
-  <a href="https://arxiv.org/" target="_blank">
+  <a href="https://arxiv.org/abs/2604.02954" target="_blank">
     <img src="https://img.shields.io/badge/Paper-Arxiv-red?logo=arxiv&style=flat-square" alt="arXiv:2604.02954">
   </a>
   <a href="https://huggingface.co/datasets/Jord8061/datasets" target="_blank">
