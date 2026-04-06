@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://arxiv.org/" target="_blank">
-    <img src="https://img.shields.io/badge/Paper-Arxiv-red?logo=arxiv&style=flat-square" alt="arXiv:2506.08938">
+    <img src="https://img.shields.io/badge/Paper-Arxiv-red?logo=arxiv&style=flat-square" alt="arXiv:2604.02954">
   </a>
   <a href="https://huggingface.co/datasets/Jord8061/datasets" target="_blank">
     <img src="https://img.shields.io/badge/HuggingFace-Data-yellow?logo=huggingface&style=flat-square" alt="HuggingFace">
@@ -83,19 +83,35 @@ Combine the selected entities and perform **bijective swapping within the same e
 pip install -r requirements.txt
 ```
 
-### Step 2: Download spaCy language model
+### Step 2 (Optional): Enable GPU with CUDA + CuPy
+
+```bash
+# check CUDA version
+nvcc --version
+
+# install ONE CuPy package matching your CUDA major version
+# CUDA 11.x
+pip install cupy-cuda11x
+# CUDA 12.x
+pip install cupy-cuda12x
+
+# quick check
+python -c "import spacy; print(spacy.prefer_gpu())"
+```
+
+### Step 3: Download spaCy language model
 
 ```bash
 python -m spacy download en_core_web_trf
 ```
 
-### Step 3: Download datasets
+### Step 4: Download datasets
 
 ```bash
 git clone https://huggingface.co/datasets/Jord8061/datasets
 ```
 
-### Step 4: Set up OpenAI API
+### Step 5: Set up OpenAI API
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
@@ -105,6 +121,8 @@ export OPENAI_BASE_URL="your-base-url-here"
 ## 🚀 Quick Start
 
 Use `main.py` as the single entry point.
+By default, completed stage outputs are auto-detected and skipped.
+Use `--force` to rerun selected stages even if outputs already exist.
 
 ### Run all stages on all datasets
 
@@ -138,11 +156,19 @@ Please do **not** use this repository to attack real-world systems or deploy poi
 
 ---
 
-<!-- ## Citation
+## Citation
 
 If you find this project useful, please cite our paper:
 
 ```bibtex
-
+@misc{xiao2026logicpoisonlogicalattacksgraph,
+      title={LogicPoison: Logical Attacks on Graph Retrieval-Augmented Generation}, 
+      author={Yilin Xiao and Jin Chen and Qinggang Zhang and Yujing Zhang and Chuang Zhou and Longhao Yang and Lingfei Ren and Xin Yang and Xiao Huang},
+      year={2026},
+      eprint={2604.02954},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2604.02954}, 
+}
 ``` 
--->
+

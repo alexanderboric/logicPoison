@@ -36,6 +36,39 @@ def pick_datasets(ds_args: List[str], avail: List[str]) -> List[str]:
     return ds_args
 
 
+def stage_done(stage: str, ds: str, args: argparse.Namespace) -> bool:
+    if stage == "global":
+        out = os.path.join(args.corpus_entities_root, f"{ds}.json")
+        return os.path.isfile(out)
+
+    if stage == "query":
+        out = os.path.join(args.queries_entities_root, f"{ds}.jsonl")
+        return os.path.isfile(out)
+
+    if stage == "logic":
+        out_dir = os.path.join(args.poisoned_root, ds)
+        corpus_out = os.path.join(out_dir, "corpus.jsonl")
+        stats_out = os.path.join(out_dir, f"poison_stats_{ds}.json")
+        return os.path.isfile(corpus_out) and os.path.isfile(stats_out)
+
+    raise ValueError(f"Unknown stage: {stage}")
+
+
+def pick_stage_datasets(stage: str, ds_list: List[str], args: argparse.Namespace) -> List[str]:
+    if args.force:
+        return ds_list
+
+    done = [ds for ds in ds_list if stage_done(stage, ds, args)]
+    todo = [ds for ds in ds_list if ds not in done]
+
+    if done:
+        print(f"[INFO] Skip completed {stage} datasets: {done}")
+    if not todo:
+        print(f"[INFO] All selected datasets already finished for stage: {stage}")
+
+    return todo
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Single entry for logic-poison pipeline: global/query/logic stages."
@@ -65,6 +98,11 @@ def parse_args():
     parser.add_argument("--queue_factor", type=int, default=4)
 
     parser.add_argument("--top_ratio", type=float, default=0.05)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force rerun selected stages even if outputs already exist.",
+    )
     return parser.parse_args()
 
 
@@ -83,34 +121,40 @@ def main():
 
     if "global" in selected_stages:
         print("\n[PIPELINE] Stage global: corpus entity statistics")
-        run_corpus(
-            selected_datasets,
-            data_root=args.data_root,
-            output_root=args.corpus_entities_root,
-            batch_size=args.batch_size,
-        )
+        stage_datasets = pick_stage_datasets("global", selected_datasets, args)
+        if stage_datasets:
+            run_corpus(
+                stage_datasets,
+                data_root=args.data_root,
+                output_root=args.corpus_entities_root,
+                batch_size=args.batch_size,
+            )
 
     if "query" in selected_stages:
         print("\n[PIPELINE] Stage query: query-centric entity extraction")
-        run_queries(
-            selected_datasets,
-            data_root=args.data_root,
-            output_dir=args.queries_entities_root,
-            max_workers=args.max_workers,
-            queue_factor=args.queue_factor,
-            model=args.query_model,
-        )
+        stage_datasets = pick_stage_datasets("query", selected_datasets, args)
+        if stage_datasets:
+            run_queries(
+                stage_datasets,
+                data_root=args.data_root,
+                output_dir=args.queries_entities_root,
+                max_workers=args.max_workers,
+                queue_factor=args.queue_factor,
+                model=args.query_model,
+            )
 
     if "logic" in selected_stages:
         print("\n[PIPELINE] Stage logic: final corpus poisoning")
-        run_poison(
-            selected_datasets,
-            data_root=args.data_root,
-            corpus_stats_root=args.corpus_entities_root,
-            queries_entities_root=args.queries_entities_root,
-            poisoned_root=args.poisoned_root,
-            top_ratio=args.top_ratio,
-        )
+        stage_datasets = pick_stage_datasets("logic", selected_datasets, args)
+        if stage_datasets:
+            run_poison(
+                stage_datasets,
+                data_root=args.data_root,
+                corpus_stats_root=args.corpus_entities_root,
+                queries_entities_root=args.queries_entities_root,
+                poisoned_root=args.poisoned_root,
+                top_ratio=args.top_ratio,
+            )
 
     print("\n[INFO] Pipeline finished.")
 
