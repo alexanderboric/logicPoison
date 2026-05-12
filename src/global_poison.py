@@ -1,55 +1,139 @@
 import argparse
+import ast
 import glob
 import json
 import os
+import random
+import time
 from collections import Counter, defaultdict
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional, Any
 
-import spacy
+import yaml
+from openai import OpenAI
 from tqdm import tqdm
 
-if spacy.prefer_gpu():
-    print("[INFO] Using GPU for spaCy")
-else:
-    print("[INFO] GPU not available, using CPU")
 
-nlp = spacy.load("en_core_web_trf")  # MUST load after prefer_gpu()
+def _load_graphrag_settings(settings_path: str = None) -> Dict[str, Any]:
+    """Load graphrag settings.yaml to get LLM configuration."""
+    if settings_path is None:
+        # Try to find settings.yaml in graphrag-api
+        possible_paths = [
+            "graphrag-api/graphrag/settings.yaml",
+            "../graphrag-api/graphrag/settings.yaml",
+            "../../graphrag-api/graphrag/settings.yaml",
+        ]
+        for path in possible_paths:
+            if os.path.isfile(path):
+                settings_path = path
+                break
+        if settings_path is None:
+            raise FileNotFoundError("Could not find graphrag settings.yaml")
+    
+    with open(settings_path, "r") as f:
+        settings = yaml.safe_load(f)
+    return settings
+
+
+def _get_llm_client(settings: Dict[str, Any]) -> tuple:
+    """Extract LLM client config from graphrag settings."""
+    model_config = settings.get("models", {}).get("default_chat_model", {})
+    
+    api_base = model_config.get("api_base")
+    api_key = model_config.get("api_key", "").strip()
+    model_name = model_config.get("model")
+    
+    # Resolve ${GRAPHRAG_API_KEY} placeholder
+    if api_key.startswith("${") and api_key.endswith("}"):
+        env_var = api_key[2:-1]
+        api_key = os.getenv(env_var, "").strip()
+        if not api_key:
+            raise RuntimeError(f"Environment variable {env_var} is not set.")
+    
+    client = OpenAI(api_key=api_key, base_url=api_base)
+    return client, model_name
+
+
+def _extract_entities_llm(text: str, client: OpenAI, model: str) -> Dict[str, List[str]]:
+    """Extract entities from text using LLM. Returns {label: [entities]}"""
+    prompt = f"""Extract named entities from the following text. For each entity, identify its type (PERSON, ORG, GPE, LOCATION, PRODUCT, EVENT, etc.).
+
+Return a JSON object with entity types as keys and lists of entities as values. Only include entities that actually appear in the text.
+
+Text: {text}
+
+Return ONLY valid JSON, e.g.:
+{{"PERSON": ["John", "Mary"], "ORG": ["Google"], "GPE": ["USA"]}}
+"""
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        )
+        result_text = response.choices[0].message.content.strip()
+        
+        # Try to parse JSON
+        try:
+            entities = json.loads(result_text)
+        except json.JSONDecodeError:
+            # Try to extract JSON from response
+            try:
+                start = result_text.index("{")
+                end = result_text.rindex("}") + 1
+                entities = json.loads(result_text[start:end])
+            except (ValueError, json.JSONDecodeError):
+                return {}
+        
+        # Ensure all values are lists
+        return {k: (v if isinstance(v, list) else [v]) for k, v in entities.items() if isinstance(v, (list, str))}
+    except Exception as e:
+        print(f"[WARN] LLM extraction failed: {e}")
+        return {}
 
 
 def corpus_stats(
     input_path: str,
     batch_size: int = 32,
+    client: Optional[OpenAI] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Counter]:
     """
-    Process corpus.jsonl using spaCy + GPU + nlp.pipe in batches.
+    Process corpus.jsonl using LLM-based NER.
     Returns:
         { label: Counter({ entity_text: count }) }
     """
+    if client is None or model is None:
+        # Load settings if not provided
+        settings = _load_graphrag_settings()
+        client, model = _get_llm_client(settings)
+    
     cnts: Dict[str, Counter] = defaultdict(Counter)
-
-    def txt_stream():
-        with open(input_path, "r", encoding="utf-8") as fin:
-            for ln in fin:
-                ln = ln.strip()
-                if not ln:
-                    continue
-                rec = json.loads(ln)
-                txt = rec.get("text", "")
-                txt = txt.replace("(", " ( ").replace(")", " ) ")
-                yield txt
 
     with open(input_path, "r", encoding="utf-8") as f:
         n_docs = sum(1 for _ in f)
     print(f"[INFO] corpus size: {n_docs} docs")
 
-    for doc in tqdm(
-        nlp.pipe(txt_stream(), batch_size=batch_size, n_process=1),
-        total=n_docs,
-        desc=f"NER (GPU) on {os.path.basename(input_path)}",
-        unit="doc",
-    ):
-        for ent in doc.ents:
-            cnts[ent.label_][ent.text] += 1
+    with open(input_path, "r", encoding="utf-8") as fin:
+        for line in tqdm(fin, total=n_docs, desc=f"NER (LLM) on {os.path.basename(input_path)}", unit="doc"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+                txt = rec.get("text", "")
+                if not txt:
+                    continue
+                
+                # Extract entities using LLM
+                entities = _extract_entities_llm(txt, client, model)
+                for label, entity_list in entities.items():
+                    for entity in entity_list:
+                        if isinstance(entity, str):
+                            cnts[label][entity.strip()] += 1
+            except Exception as e:
+                print(f"[WARN] Error processing document: {e}")
+                continue
 
     return cnts
 
@@ -73,6 +157,11 @@ def run_corpus(
     batch_size: int = 32,
 ):
     os.makedirs(output_root, exist_ok=True)
+    
+    # Load graphrag settings and LLM client once
+    settings = _load_graphrag_settings()
+    client, model = _get_llm_client(settings)
+    print(f"[INFO] Using LLM model: {model}")
 
     for ds in dataset_names:
         in_path = os.path.join(data_root, ds, "corpus.jsonl")
@@ -85,6 +174,8 @@ def run_corpus(
         cnts = corpus_stats(
             in_path,
             batch_size=batch_size,
+            client=client,
+            model=model,
         )
         save_stats(cnts, out_path)
 

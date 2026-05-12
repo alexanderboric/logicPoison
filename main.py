@@ -2,9 +2,9 @@ import argparse
 import os
 from typing import List
 
-from src.global_poison import run_corpus
-from src.logic_poison import run_poison
-from src.query_centric import run_queries
+from attacks.logicPoison.src.global_poison import run_corpus
+from attacks.logicPoison.src.logic_poison import run_poison
+from attacks.logicPoison.src.query_centric import run_queries
 
 STAGE_ORDER = ["global", "query", "logic"]
 
@@ -106,8 +106,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def main(config=None):
+    # If called with config dict (from parent module), use it; otherwise parse args
+    if config is None:
+        args = parse_args()
+    else:
+        # Convert config dict to args namespace
+        args = argparse.Namespace(**config)
+    
     available = list_datasets(args.data_root)
     if not available:
         print(f"[WARN] No datasets found under {args.data_root}")

@@ -9,23 +9,66 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, List, Optional
 
+import yaml
 import openai
 from openai import OpenAI
 from tqdm import tqdm
 
-def _load_api_key() -> str:
+def _load_graphrag_settings(settings_path: str = None) -> Dict[str, Any]:
+    """Load graphrag settings.yaml to get LLM configuration."""
+    if settings_path is None:
+        # Try to find settings.yaml in graphrag-api
+        possible_paths = [
+            "graphrag-api/graphrag/settings.yaml",
+            "../graphrag-api/graphrag/settings.yaml",
+            "../../graphrag-api/graphrag/settings.yaml",
+        ]
+        for path in possible_paths:
+            if os.path.isfile(path):
+                settings_path = path
+                break
+        if settings_path is None:
+            raise FileNotFoundError("Could not find graphrag settings.yaml")
+    
+    with open(settings_path, "r") as f:
+        settings = yaml.safe_load(f)
+    return settings
+
+
+def _get_llm_config(settings: Dict[str, Any]) -> tuple:
+    """Extract LLM configuration from graphrag settings."""
+    model_config = settings.get("models", {}).get("default_chat_model", {})
+    
+    api_base = model_config.get("api_base")
+    api_key = model_config.get("api_key", "").strip()
+    model_name = model_config.get("model")
+    
+    # Resolve ${GRAPHRAG_API_KEY} placeholder
+    if api_key.startswith("${") and api_key.endswith("}"):
+        env_var = api_key[2:-1]
+        api_key = os.getenv(env_var, "").strip()
+        if not api_key:
+            raise RuntimeError(f"Environment variable {env_var} is not set.")
+    
+    return api_key, api_base, model_name
+
+
+# Load settings and initialize client once at module import time
+try:
+    _settings = _load_graphrag_settings()
+    _api_key, _base_url, _model_name = _get_llm_config(_settings)
+    client = OpenAI(api_key=_api_key, base_url=_base_url)
+    DEFAULT_MODEL = _model_name
+except Exception as e:
+    print(f"[WARN] Failed to load GraphRAG settings: {e}")
+    print("[WARN] Falling back to environment variables")
+    # Fallback to environment variables
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("OPENAI_API_KEY is not set.")
-    return key
-
-
-def _load_base_url() -> Optional[str]:
-    url = os.getenv("OPENAI_BASE_URL", "").strip()
-    return url or None
-
-
-client = OpenAI(api_key=_load_api_key(), base_url=_load_base_url())
+        raise RuntimeError("OPENAI_API_KEY is not set and GraphRAG settings could not be loaded.")
+    url = os.getenv("OPENAI_BASE_URL", "").strip() or None
+    client = OpenAI(api_key=key, base_url=url)
+    DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 def make_prompt(q: str) -> str:
@@ -102,8 +145,10 @@ def _parse_entities(txt: str):
 
 def extract_entities(
     question: str,
-    model: str = "gpt-4o-mini",
+    model: str = None,
 ) -> List[Dict[str, Any]]:
+    if model is None:
+        model = DEFAULT_MODEL
     msg = make_prompt(question)
     rsp = client.chat.completions.create(
         model=model,
@@ -132,8 +177,10 @@ def extract_retry(
     item: Dict[str, Any],
     retries: int = 3,
     base_delay: float = 1.5,
-    model: str = "gpt-4o-mini",
+    model: str = None,
 ) -> Dict[str, Any]:
+    if model is None:
+        model = DEFAULT_MODEL
     qid = item.get("_id")
     qtxt = item.get("text", "")
 
@@ -153,8 +200,10 @@ def run_query_file(
     output_path: str,
     max_workers: int = 8,
     queue_factor: int = 4,
-    model: str = "gpt-4o-mini",
+    model: str = None,
 ):
+    if model is None:
+        model = DEFAULT_MODEL
     log = logging.getLogger("entity_extraction")
     if not log.handlers:
         log.setLevel(logging.INFO)
@@ -224,8 +273,10 @@ def run_queries(
     output_dir: str = "results/queries_entities",
     max_workers: int = 8,
     queue_factor: int = 4,
-    model: str = "gpt-4o-mini",
+    model: str = None,
 ):
+    if model is None:
+        model = DEFAULT_MODEL
     os.makedirs(output_dir, exist_ok=True)
 
     for ds in dataset_names:
@@ -258,7 +309,7 @@ def parse_args():
     parser.add_argument("--max_workers", type=int, default=8)
     parser.add_argument("--queue_factor", type=int, default=4)
     parser.add_argument("--output_dir", type=str, default="results/queries_entities")
-    parser.add_argument("--model", type=str, default="gpt-4o-mini")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument(
         "--datasets",
         nargs="+",
